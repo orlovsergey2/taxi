@@ -23,7 +23,7 @@ def convert_ui_to_py(input_ui_file, output_py_file=None):
 
 if __name__ == '__main__':
     # Если нужно конвертировать конкретный файл по умолчанию
-    default_ui_file = "untitled.ui"
+    default_ui_file = "rezerv/windows_add.ui"
 
     if len(sys.argv) < 2:
         # Пробуем конвертировать файл по умолчанию
