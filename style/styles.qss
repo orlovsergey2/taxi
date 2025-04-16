@@ -1,0 +1,300 @@
+/* Основные стили приложения */
+QWidget {
+    background-color: #ffffff;
+    font-family: "YS Text", Arial, sans-serif;
+    color: #000000;
+    selection-background-color: #FFCC00;
+    selection-color: #000000;
+}
+
+/* Главное окно */
+QMainWindow {
+    background-color: #f5f5f6;
+}
+
+/* Кнопки - стиль Яндекс Go */
+QPushButton {
+    background-color: #FFDB4D;
+    color: #000000;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-weight: 500;
+    font-size: 15px;
+    min-width: 100px;
+}
+
+QPushButton:hover {
+    background-color: #FFD633;
+}
+
+QPushButton:pressed {
+    background-color: #FFCC00;
+}
+
+QPushButton:disabled {
+    background-color: #ebebeb;
+    color: #7f8285;
+}
+
+/* Текстовые поля с более заметной обводкой */
+QLineEdit {
+    background-color: #ffffff;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 15px;
+    min-width: 280px;
+    selection-background-color: #FFCC00;
+}
+
+QLineEdit:focus {
+    border: 2px solid #FFCC00;
+    outline: none;
+}
+
+QLineEdit:disabled {
+    border: 2px solid #ebebeb;
+    background-color: #f9f9f9;
+}
+
+/* Выпадающие списки с более заметной обводкой */
+QComboBox {
+    background-color: #ffffff;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 10px 16px;
+    min-width: 120px;
+}
+
+QComboBox:focus {
+    border: 2px solid #FFCC00;
+}
+
+QComboBox:disabled {
+    border: 2px solid #ebebeb;
+    background-color: #f9f9f9;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 30px;
+    border-left-width: 1px;
+    border-left-color: #e0e0e0;
+    border-left-style: solid;
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+QComboBox QAbstractItemView {
+    border: 2px solid #e0e0e0;
+    selection-background-color: #FFCC00;
+    selection-color: #000000;
+    background-color: #ffffff;
+}
+
+/* Списки с более заметной обводкой */
+QListView {
+    background-color: #ffffff;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 4px;
+    show-decoration-selected: 1;
+}
+
+QListView:disabled {
+    border: 2px solid #ebebeb;
+    background-color: #f9f9f9;
+}
+
+QListView::item {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+QListView::item:hover {
+    background-color: #f5f5f6;
+}
+
+QListView::item:selected {
+    background-color: #FFCC00;
+    color: #000000;
+}
+
+/* Заголовки */
+QLabel {
+    font-size: 15px;
+    color: #000000;
+}
+
+QLabel#header {
+    font-size: 20px;
+    font-weight: 500;
+    color: #000000;
+}
+
+/* Панели */
+QFrame {
+    background-color: #ffffff;
+    border-radius: 12px;
+    border: none;
+}
+
+/* Полосы прокрутки */
+QScrollBar:vertical {
+    border: none;
+    background-color: #f5f5f6;
+    width: 10px;
+    margin: 0px 0px 0px 0px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #d9d9d9;
+    min-height: 20px;
+    border-radius: 5px;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+/* Вкладки */
+QTabWidget::pane {
+    border: none;
+    margin-top: 4px;
+}
+
+QTabBar::tab {
+    background-color: #f5f5f6;
+    color: #000000;
+    padding: 8px 16px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    margin-right: 4px;
+    font-weight: 500;
+}
+
+QTabBar::tab:selected {
+    background-color: #ffffff;
+    color: #000000;
+    border-bottom: 2px solid #FFCC00;
+}
+
+/* Чекбоксы */
+QCheckBox {
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+}
+
+QCheckBox::indicator:unchecked {
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    background-color: #ffffff;
+}
+
+QCheckBox::indicator:checked {
+    border: 1px solid #FFCC00;
+    border-radius: 4px;
+    background-color: #FFCC00;
+    image: url(:/images/checkmark.svg);
+}
+
+/* Радиокнопки */
+QRadioButton {
+    spacing: 8px;
+}
+
+QRadioButton::indicator {
+    width: 18px;
+    height: 18px;
+}
+
+QRadioButton::indicator::unchecked {
+    border: 1px solid #d9d9d9;
+    border-radius: 9px;
+    background-color: #ffffff;
+}
+
+QRadioButton::indicator::checked {
+    border: 1px solid #FFCC00;
+    border-radius: 9px;
+    background-color: #FFCC00;
+}
+QTextEdit {
+    font-size: 13px;
+    padding: 5px;
+    border: 2px solid #aaa;
+    border-radius: 3px;
+    background-color: #f5f5f5;
+}
+/* Многострочное текстовое поле в стиле Яндекс Go */
+QTextEdit {
+    font-family: "YS Text", Arial, sans-serif;
+    font-size: 15px;
+    padding: 12px 16px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    background-color: #ffffff;
+    color: #000000;
+    selection-background-color: #FFCC00;
+    selection-color: #000000;
+    min-height: 120px;
+}
+
+QTextEdit:focus {
+    border: 2px solid #FFCC00;
+    outline: none;
+}
+
+QTextEdit:disabled {
+    border: 2px solid #ebebeb;
+    background-color: #f9f9f9;
+    color: #7f8285;
+}
+
+/* Стили полосы прокрутки для QTextEdit */
+QTextEdit QScrollBar:vertical {
+    border: none;
+    background-color: #f5f5f6;
+    width: 10px;
+    margin: 0px 0px 0px 0px;
+}
+
+QTextEdit QScrollBar::handle:vertical {
+    background-color: #d9d9d9;
+    min-height: 20px;
+    border-radius: 5px;
+}
+
+QTextEdit QScrollBar::add-line:vertical,
+QTextEdit QScrollBar::sub-line:vertical {
+    height: 0px;
+    background: none;
+}
+
+QTextEdit QScrollBar::add-page:vertical,
+QTextEdit QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+QTextEdit QScrollBar:horizontal {
+    border: none;
+    background-color: #f5f5f6;
+    height: 10px;
+    margin: 0px 0px 0px 0px;
+}
+
+QTextEdit QScrollBar::handle:horizontal {
+    background-color: #d9d9d9;
+    min-width: 20px;
+    border-radius: 5px;
+}
