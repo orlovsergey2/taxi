@@ -1,9 +1,9 @@
 import mysql.connector
 from mysql.connector import Error
 from datetime import datetime
-from typing import List, Dict, Optional
-from PySide6.QtWidgets import (QApplication, QMessageBox, QMainWindow)
-import random
+from typing import List, Optional, Dict
+
+
 class DatabaseManager:
     def __init__(self):
         # Конфигурация подключения
@@ -83,7 +83,31 @@ class DatabaseManager:
                     phone VARCHAR(20) NOT NULL,
                     status ENUM('available', 'on_ride', 'off_duty', 'sick_leave') DEFAULT 'available',
                     hire_date DATE NOT NULL,
-                    car_id INT,
+                    is_active BOOLEAN DEFAULT TRUE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """)
+
+            # Таблица распределения водителей и автомобилей
+            cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS driver_car_assignments (
+                            assignment_id INT AUTO_INCREMENT PRIMARY KEY,
+                            driver_id INT NOT NULL,
+                            car_id INT NOT NULL,
+                            assignment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (driver_id) REFERENCES drivers(driver_id),
+                            FOREIGN KEY (car_id) REFERENCES cars(car_id),
+                            UNIQUE KEY unique_assignment (driver_id, car_id)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS maintenance_history (
+                    maintenance_id INT AUTO_INCREMENT PRIMARY KEY,
+                    car_id INT NOT NULL,
+                    maintenance_date DATE NOT NULL,
+                    mileage INT NOT NULL,
+                    service_type ENUM('Регламентное', 'Ремонт', 'Диагностика') NOT NULL,
+                    description TEXT,
+                    cost DECIMAL(10, 2),
                     FOREIGN KEY (car_id) REFERENCES cars(car_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
@@ -132,7 +156,7 @@ class DatabaseManager:
 
     def add_driver(self, full_name: str, license_number: str,
                    phone: str, hire_date: str = None) -> bool:
-        """Добавляет нового водителя с проверкой уникальности номера прав"""
+        """Добавляет нового водителя"""
         if not self.connect():
             return False
 
@@ -140,12 +164,6 @@ class DatabaseManager:
         try:
             cursor = self.connection.cursor()
 
-            # Сначала проверяем, существует ли уже водитель с таким номером прав
-            check_query = "SELECT COUNT(*) FROM drivers WHERE license_number = %s"
-            cursor.execute(check_query, (license_number,))
-            if cursor.fetchone()[0] > 0:
-                print(f"Ошибка: водитель с номером прав {license_number} уже существует")
-                return False
             hire_date = hire_date or datetime.now().strftime('%Y-%m-%d')
 
             insert_query = """
@@ -159,7 +177,7 @@ class DatabaseManager:
             return True
 
         except Error as e:
-            print (f"Ошибка при добавлении водителя: {e}")
+            print(f"Ошибка при добавлении водителя: {e}")
             return False
         finally:
             if cursor and self.connection.is_connected():
@@ -255,22 +273,36 @@ class DatabaseManager:
             if self.connection and self.connection.is_connected():
                 self.connection.close()
 
-    def delete_driver(self, license_number: str) -> bool:
-        """Удаляет водителя по его ID"""
+    def delete_driver(self, driver_id: int) -> bool:
+        """Удаляет водителя по ID"""
         if not self.connect():
+            print("Ошибка подключения к базе данных")
             return False
 
         cursor = None
         try:
             cursor = self.connection.cursor()
 
-            delete_query = "DELETE FROM drivers WHERE license_number = %s"
-            cursor.execute(delete_query, (license_number,))
+            # 1. Проверяем существование водителя
+            cursor.execute("SELECT 1 FROM drivers WHERE driver_id = %s", (driver_id,))
+            if not cursor.fetchone():
+                print(f"Водитель с ID {driver_id} не найден")
+                return False
+
+            # 2. Удаляем водителя
+            delete_query = "DELETE FROM drivers WHERE driver_id = %s"
+            cursor.execute(delete_query, (driver_id,))
+
+            if cursor.rowcount == 0:
+                print(f"Водитель с ID {driver_id} не был удален")
+                return False
+
             self.connection.commit()
-            print(f"Водитель с ID {license_number} успешно удален")
+            print(f"Водитель с ID {driver_id} успешно удален")
             return True
 
         except Error as e:
+            self.connection.rollback()
             print(f"Ошибка при удалении водителя: {e}")
             return False
         finally:
@@ -278,11 +310,231 @@ class DatabaseManager:
                 cursor.close()
             if self.connection and self.connection.is_connected():
                 self.connection.close()
+
+    def assign_driver_to_car(self, driver_id: int, car_id: int) -> bool:
+        """Назначает водителя на автомобиль"""
+        if not self.connect():
+            return False
+
+        cursor = None
+        try:
+            cursor = self.connection.cursor()
+
+            # Проверяем, что водитель и автомобиль существуют
+            cursor.execute("SELECT 1 FROM drivers WHERE driver_id = %s", (driver_id,))
+            if not cursor.fetchone():
+                print(f"Водитель с ID {driver_id} не найден")
+                return False
+
+            cursor.execute("SELECT 1 FROM cars WHERE car_id = %s", (car_id,))
+            if not cursor.fetchone():
+                print(f"Автомобиль с ID {car_id} не найден")
+                return False
+
+            # Проверяем, что водитель и автомобиль свободны
+            cursor.execute("""
+                SELECT 1 FROM drivers 
+                WHERE driver_id = %s AND status = 'available'
+                AND driver_id NOT IN (SELECT driver_id FROM driver_car_assignments)
+            """, (driver_id,))
+            if not cursor.fetchone():
+                print("Водитель уже занят")
+                return False
+
+            cursor.execute("""
+                SELECT 1 FROM cars 
+                WHERE car_id = %s AND is_active = TRUE
+                AND car_id NOT IN (SELECT car_id FROM driver_car_assignments)
+            """, (car_id,))
+            if not cursor.fetchone():
+                print("Автомобиль уже занят")
+                return False
+
+            # Назначаем
+            insert_query = """
+                INSERT INTO driver_car_assignments (driver_id, car_id)
+                VALUES (%s, %s)
+            """
+            cursor.execute(insert_query, (driver_id, car_id))
+
+            # Обновляем статус водителя
+            update_query = """
+                UPDATE drivers 
+                SET status = 'on_ride' 
+                WHERE driver_id = %s
+            """
+            cursor.execute(update_query, (driver_id,))
+
+            self.connection.commit()
+            print(f"Водитель {driver_id} назначен на автомобиль {car_id}")
+            return True
+
+        except Error as e:
+            self.connection.rollback()
+            print(f"Ошибка при назначении водителя: {e}")
+            return False
+        finally:
+            if cursor and self.connection.is_connected():
+                cursor.close()
+            if self.connection and self.connection.is_connected():
+                self.connection.close()
+
+    def get_free_drivers(self):
+        """Возвращает список водителей без прикрепленных машин"""
+        if not self.connect():
+            return []
+
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT d.* FROM drivers d
+                LEFT JOIN driver_car_assignments a ON d.driver_id = a.driver_id
+                WHERE a.driver_id IS NULL
+                AND d.status = 'available'
+            """)
+            return cursor.fetchall()
+        except Error as e:
+            print(f"Ошибка при получении свободных водителей: {e}")
+            return []
+        finally:
+            if cursor and self.connection.is_connected():
+                cursor.close()
+
+    def get_free_cars(self) -> List[Dict]:
+        """Возвращает список свободных автомобилей"""
+        if not self.connect():
+            return []
+
+        cursor = None
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+
+            query = """
+                SELECT c.* FROM cars c
+                WHERE c.car_id NOT IN (SELECT car_id FROM driver_car_assignments)
+                AND c.is_active = TRUE
+            """
+            cursor.execute(query)
+            return cursor.fetchall()
+
+        except Error as e:
+            print(f"Ошибка при получении свободных автомобилей: {e}")
+            return []
+        finally:
+            if cursor and self.connection.is_connected():
+                cursor.close()
+            if self.connection and self.connection.is_connected():
+                self.connection.close()
+
+    def get_assigned_drivers(self) -> List[Dict]:
+        """Возвращает список распределенных водителей с их автомобилями"""
+        if not self.connect():
+            return []
+
+        cursor = None
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+
+            query = """
+                SELECT d.driver_id, d.full_name, c.car_id, c.license_plate, c.model
+                FROM driver_car_assignments a
+                JOIN drivers d ON a.driver_id = d.driver_id
+                JOIN cars c ON a.car_id = c.car_id
+            """
+            cursor.execute(query)
+            return cursor.fetchall()
+
+        except Error as e:
+            print(f"Ошибка при получении распределенных водителей: {e}")
+            return []
+        finally:
+            if cursor and self.connection.is_connected():
+                cursor.close()
+            if self.connection and self.connection.is_connected():
+                self.connection.close()
+
+    # Добавим методы для работы с ТО:
+    def add_maintenance_record(self, car_id: int, date: str, mileage: int,
+                               service_type: str, description: str, cost: float = None) -> bool:
+        """Добавляет запись о техническом обслуживании"""
+        if not self.connect():
+            return False
+
+        try:
+            cursor = self.connection.cursor()
+            query = """
+                INSERT INTO maintenance_history 
+                (car_id, maintenance_date, mileage, service_type, description, cost)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(query, (car_id, date, mileage, service_type, description, cost))
+
+            # Обновляем данные автомобиля
+            update_query = """
+                UPDATE cars 
+                SET last_maintenance = %s, mileage = %s 
+                WHERE car_id = %s
+            """
+            cursor.execute(update_query, (date, mileage, car_id))
+
+            self.connection.commit()
+            return True
+        except Error as e:
+            self.connection.rollback()
+            print(f"Ошибка при добавлении записи ТО: {e}")
+            return False
+        finally:
+            if cursor and self.connection.is_connected():
+                cursor.close()
+
+    def get_maintenance_history(self, car_id: int) -> List[Dict]:
+        """Возвращает историю ТО для автомобиля"""
+        if not self.connect():
+            return []
+
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT * FROM maintenance_history 
+                WHERE car_id = %s 
+                ORDER BY maintenance_date DESC
+            """, (car_id,))
+            return cursor.fetchall()
+        except Error as e:
+            print(f"Ошибка при получении истории ТО: {e}")
+            return []
+        finally:
+            if cursor and self.connection.is_connected():
+                cursor.close()
+
+    def get_car_current_status(self, car_id: int) -> Optional[Dict]:
+        """Возвращает текущий статус автомобиля (последнее ТО)"""
+        if not self.connect():
+            return None
+
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT 
+                    c.*, 
+                    (SELECT MAX(maintenance_date) FROM maintenance_history WHERE car_id = c.car_id) as last_maintenance_date,
+                    (SELECT mileage FROM maintenance_history WHERE car_id = c.car_id ORDER BY maintenance_date DESC LIMIT 1) as current_mileage
+                FROM cars c
+                WHERE c.car_id = %s
+            """, (car_id,))
+            return cursor.fetchone()
+        except Error as e:
+            print(f"Ошибка при получении статуса автомобиля: {e}")
+            return None
+        finally:
+            if cursor and self.connection.is_connected():
+                cursor.close()
+
 def main():
     # Инициализация менеджера базы данных
     db = DatabaseManager()
 
-    # Создание базы данных и таблиц
+    # 1. Создаем базу данных и таблицы (если их нет)
     if not db.create_database():
         print("Не удалось создать базу данных")
         return
