@@ -1,7 +1,8 @@
-import mysql.connector
-from mysql.connector import Error
 from datetime import datetime
 from typing import List, Optional, Dict
+
+import mysql.connector
+from mysql.connector import Error
 
 
 class DatabaseManager:
@@ -529,6 +530,7 @@ class DatabaseManager:
         finally:
             if cursor and self.connection.is_connected():
                 cursor.close()
+
 
 def main():
     # Инициализация менеджера базы данных

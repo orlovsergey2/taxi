@@ -50,10 +50,15 @@ class Database:
                 CREATE TABLE IF NOT EXISTS {self.database}.users (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     username VARCHAR(255) UNIQUE NOT NULL,
-                    password_hash VARCHAR(255) NOT NULL
+                    password_hash VARCHAR(255) NOT NULL,
+                    is_admin BOOLEAN DEFAULT FALSE
                 )
             """)
-
+            # Добавляем администратора по умолчанию
+            cursor.execute(f"""
+                           INSERT IGNORE INTO {self.database}.users (username, password_hash, is_admin)
+                           VALUES ('admin', %s, TRUE)
+                       """, (bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'),))
             temp_conn.commit()
             cursor.close()
             temp_conn.close()
@@ -95,30 +100,29 @@ class Database:
                 cursor.close()
                 self.connection.close()
 
-    def check_credentials(self, username: str, password: str) -> Tuple[bool, str]:
-        """Проверяет учетные данные пользователя"""
+    def check_credentials(self, username: str, password: str) -> Tuple[bool, str, bool]:
+        """Проверяет учетные данные пользователя и возвращает is_admin статус"""
         if not self.connect():
-            return False, "Ошибка подключения к базе данных"
+            return False, "Ошибка подключения к базе данных", False
 
         try:
             cursor = self.connection.cursor(dictionary=True)
-
             cursor.execute(
-                "SELECT password_hash FROM users WHERE username = %s",
+                "SELECT password_hash, is_admin FROM users WHERE username = %s",
                 (username,)
             )
             user = cursor.fetchone()
 
             if not user:
-                return False, "Пользователь не найден"
+                return False, "Пользователь не найден", False
 
             if bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
-                return True, "Аутентификация успешна"
+                return True, "Аутентификация успешна", user['is_admin']
             else:
-                return False, "Неверный пароль"
+                return False, "Неверный пароль", False
 
         except Error as e:
-            return False, f"Ошибка аутентификации: {str(e)}"
+            return False, f"Ошибка аутентификации: {str(e)}", False
         finally:
             if self.connection.is_connected():
                 cursor.close()

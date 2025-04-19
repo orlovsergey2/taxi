@@ -1,3 +1,4 @@
+from PySide6 import QtCore
 from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
                             QMetaObject, QObject, QPoint, QRect,
                             QSize, QTime, QUrl, Qt)
@@ -7,7 +8,7 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
                            QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QComboBox, QLabel, QLineEdit,
                                QListView, QPushButton, QSizePolicy, QWidget,
-                               QVBoxLayout, QHBoxLayout, QGroupBox, QSpacerItem, QFormLayout)
+                               QVBoxLayout, QHBoxLayout, QGroupBox, QSpacerItem, QFormLayout, QDateEdit)
 
 
 class Ui_Form(object):
@@ -122,15 +123,19 @@ class Ui_Form(object):
         self.lineEdit_number.setObjectName(u"lineEdit_number")
         self.lineEdit_number.setMinimumSize(250, 30)
 
-        self.lineEdit_date = QLineEdit(self.driver_group)
-        self.lineEdit_date.setObjectName(u"lineEdit_date")
-        self.lineEdit_date.setMinimumSize(250, 30)
+        # Заменяем QLineEdit для даты на QDateEdit с календарем
+        self.dateEdit_hire = QDateEdit(self.driver_group)  # Заменяем lineEdit_date
+        self.dateEdit_hire.setObjectName(u"dateEdit_hire")
+        self.dateEdit_hire.setMinimumSize(250, 30)
+        self.dateEdit_hire.setCalendarPopup(True)  # Включаем выпадающий календарь
+        self.dateEdit_hire.setDisplayFormat("yyyy-MM-dd")  # Формат даты
+        self.dateEdit_hire.setDate(QtCore.QDate.currentDate())  # Установка текущей даты
 
         # Добавляем поля в форму
         self.driver_form_layout.addRow("Имя водителя:", self.lineEdit_name)
         self.driver_form_layout.addRow("ID водителя:", self.lineEdit)
         self.driver_form_layout.addRow("Номер телефона:", self.lineEdit_number)
-        self.driver_form_layout.addRow("Дата найма:", self.lineEdit_date)
+        self.driver_form_layout.addRow("Дата найма:", self.dateEdit_hire)
 
         self.driver_layout.addLayout(self.driver_form_layout)
 

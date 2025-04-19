@@ -6,7 +6,7 @@ from PySide6 import QtWidgets, QtCore
 from PySide6.QtCore import QSize, QStringListModel
 from PySide6.QtWidgets import (QApplication, QMessageBox, QMainWindow)
 from autorization.registration import Database
-from ui import autorization, main_menu, list_auto, list_driver, united_driver, free_data, go_to
+from ui import autorization, main_menu, list_auto, list_driver, united_driver, free_data, go_to, history_to
 from ui.windows_add import Ui_Form
 from taxi.taxi_park import DatabaseManager
 import random
@@ -22,7 +22,11 @@ def load_application_styles(app):
     except Exception as e:
         print(f"Ошибка загрузки стилей: {e}")
         return False
-
+def go_back(widget, stacked_widget):
+    """Глобальная функция для возврата в предыдущее окно"""
+    stacked_widget.setCurrentIndex(1)
+    stacked_widget.removeWidget(widget)
+    widget.deleteLater()
 
 class LoginWindow(QMainWindow, autorization.Ui_MainWindow):
     def __init__(self, stacked_widget):
@@ -35,7 +39,7 @@ class LoginWindow(QMainWindow, autorization.Ui_MainWindow):
         self.pushButton.clicked.connect(self.handle_register)
 
     def sizeHint(self):
-        return QSize(400, 300)
+        return QSize(800, 600)
 
     def handle_login(self):
         username = self.LineEdit.text().strip()
@@ -45,8 +49,10 @@ class LoginWindow(QMainWindow, autorization.Ui_MainWindow):
             QMessageBox.warning(self, "Ошибка", "Введите логин и пароль")
             return
 
-        success, message = self.db.check_credentials(username, password)
+        success, message, is_admin = self.db.check_credentials(username, password)
         if success:
+            self.MainWindow = MainWindow(self.stacked_widget, is_admin=bool(is_admin))
+            self.stacked_widget.addWidget(self.MainWindow)
             self.stacked_widget.setCurrentIndex(1)
         else:
             QMessageBox.warning(self, "Ошибка", message)
@@ -71,28 +77,24 @@ class LoginWindow(QMainWindow, autorization.Ui_MainWindow):
 
 
 class CarManagerWindow(QtWidgets.QMainWindow, list_auto.Ui_MainWindow):
-    def __init__(self, stacked_widget):
+    def __init__(self, stacked_widget, is_admin=0):
         super().__init__()
         self.setupUi(self)
         self.stacked_widget = stacked_widget
         self.db = DatabaseManager()
         self.current_items = []
-
+        self.is_admin = is_admin
         self.model = QtCore.QStringListModel()
         self.listView.setModel(self.model)
-
+        if not self.is_admin:
+            self.btn_del_auto.setVisible(False)
         self.btn_del_auto.clicked.connect(self.delete_selected_car)
-        self.exit.clicked.connect(self.go_back)
+        self.exit.clicked.connect(lambda: go_back(self, self.stacked_widget))
 
         self.load_data_car()
 
     def sizeHint(self):
         return QSize(800, 600)
-
-    def go_back(self):
-        self.stacked_widget.setCurrentIndex(1)
-        self.stacked_widget.removeWidget(self)
-        self.deleteLater()
 
     def load_data_car(self):
         try:
@@ -118,6 +120,9 @@ class CarManagerWindow(QtWidgets.QMainWindow, list_auto.Ui_MainWindow):
             self.current_items = []
 
     def delete_selected_car(self):
+        if not self.is_admin:
+            QMessageBox.warning(self, "Ошибка", "У вас нет прав для выполнения этой операции")
+            return
         selected = self.listView.selectedIndexes()
         if not selected:
             QtWidgets.QMessageBox.warning(
@@ -172,27 +177,23 @@ class CarManagerWindow(QtWidgets.QMainWindow, list_auto.Ui_MainWindow):
 
 
 class DriverManagerWindow(QMainWindow, list_driver.Ui_MainWindow):
-    def __init__(self, stacked_widget):
+    def __init__(self, stacked_widget, is_admin=0):
         super().__init__()
         self.setupUi(self)
         self.stacked_widget = stacked_widget
         self.db = DatabaseManager()
-
+        self.is_admin = is_admin
         self.model = QtCore.QStringListModel()
         self.listView.setModel(self.model)
-
+        if not self.is_admin:
+            self.btn_del_driver.setVisible(False)
         self.btn_del_driver.clicked.connect(self.delete_selected_driver)
-        self.exit.clicked.connect(self.go_back)
+        self.exit.clicked.connect(lambda: go_back(self, self.stacked_widget))
         self.setup_context_menu()
         self.load_driver_data()
 
     def sizeHint(self):
         return QSize(800, 600)
-
-    def go_back(self):
-        self.stacked_widget.setCurrentIndex(1)
-        self.stacked_widget.removeWidget(self)
-        self.deleteLater()
 
     def setup_context_menu(self):
         self.listView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -227,6 +228,9 @@ class DriverManagerWindow(QMainWindow, list_driver.Ui_MainWindow):
             QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить данные:\n{str(e)}")
 
     def delete_selected_driver(self):
+        if not self.is_admin:
+            QMessageBox.warning(self, "Ошибка", "У вас нет прав для выполнения этой операции")
+            return
         selected = self.listView.selectedIndexes()
         if not selected:
             QMessageBox.warning(self, "Ошибка", "Выберите водителя для удаления")
@@ -274,7 +278,7 @@ class TaxiParkWindow(QMainWindow, Ui_Form):
         self.add_driver.clicked.connect(self.handle_add_driver)
         self.pushButton_2.clicked.connect(self.show_drivers)
         self.pushButton_3.clicked.connect(self.show_cars)
-        self.pushButton_back.clicked.connect(self.go_back)
+        self.pushButton_back.clicked.connect(lambda: go_back(self, self.stacked_widget))
 
     def sizeHint(self):
         return QSize(1000, 700)
@@ -286,11 +290,6 @@ class TaxiParkWindow(QMainWindow, Ui_Form):
     def generate_auto_id(self):
         driver_id = random.randint(100000, 999999)
         self.lineEdit_number_auto.setText(str(driver_id))
-
-    def go_back(self):
-        self.stacked_widget.setCurrentIndex(1)
-        self.stacked_widget.removeWidget(self)
-        self.deleteLater()
 
     def show_cars(self):
         car_window = CarManagerWindow(self.stacked_widget)
@@ -330,7 +329,7 @@ class TaxiParkWindow(QMainWindow, Ui_Form):
         full_name = self.lineEdit_name.text()
         driver_id = self.lineEdit.text()
         license_number = self.lineEdit_number.text()
-        hire_date = self.lineEdit_date.text()
+        hire_date = self.dateEdit_hire.text()
 
         if not all([full_name, driver_id, license_number, hire_date]):
             QMessageBox.warning(self, "Ошибка", "Заполните все поля для водителя!")
@@ -368,7 +367,7 @@ class UnitedDriverWindow(QMainWindow, united_driver.Ui_MainWindow):
         self.stacked_widget = stacked_widget
         self.db = DatabaseManager()
 
-        self.btn_back.clicked.connect(self.go_back)
+        self.btn_back.clicked.connect(lambda: go_back(self, self.stacked_widget))
         self.btn_united.clicked.connect(self.distribute_drivers)
         self.btn_ununited.clicked.connect(self.unassign_all_drivers)
 
@@ -382,11 +381,6 @@ class UnitedDriverWindow(QMainWindow, united_driver.Ui_MainWindow):
         self.listView_3.setModel(self.free_cars_model)
 
         self.update_lists()
-
-    def go_back(self):
-        self.stacked_widget.setCurrentIndex(1)
-        self.stacked_widget.removeWidget(self)
-        self.deleteLater()
 
     def distribute_drivers(self):
         if not self.db.connect():
@@ -506,18 +500,13 @@ class FreeDriverWindow(QMainWindow, free_data.Ui_MainWindow):
         self.listView_cars.setModel(self.cars_model)
 
         # Подключение кнопки "Назад"
-        self.btn_back.clicked.connect(self.go_back)
+        self.btn_back.clicked.connect(lambda: go_back(self, self.stacked_widget))
 
         # Первоначальная загрузка данных
         self.update_lists()
 
     def sizeHint(self):
         return QSize(900, 500)
-
-    def go_back(self):
-        self.stacked_widget.setCurrentIndex(1)
-        self.stacked_widget.removeWidget(self)
-        self.deleteLater()
 
     def update_lists(self):
         """Загружает списки свободных водителей и автомобилей"""
@@ -566,7 +555,7 @@ class TaxiOnTO(QMainWindow, go_to.Ui_MainWindow):
         self.carsListView.selectionModel().selectionChanged.connect(self.on_selection_changed)
 
         # Подключаем кнопки
-        self.btnBack.clicked.connect(self.go_back)
+        self.btnBack.clicked.connect(lambda: go_back(self, self.stacked_widget))
         self.btnAddMaintenance.clicked.connect(self.add_maintenance)
 
         # Загрузка данных
@@ -674,21 +663,81 @@ class TaxiOnTO(QMainWindow, go_to.Ui_MainWindow):
         except ValueError:
             QMessageBox.warning(self, "Ошибка", "Проверьте правильность введенных данных")
 
-    def go_back(self):
-        self.stacked_widget.setCurrentIndex(1)
-        self.stacked_widget.removeWidget(self)
-        self.deleteLater()
-class MainWindow(QMainWindow, main_menu.Ui_MainWindow):
+class HistoryTO(QMainWindow, history_to.Ui_MainWindow):
     def __init__(self, stacked_widget):
         super().__init__()
         self.setupUi(self)
         self.stacked_widget = stacked_widget
         self.db = DatabaseManager()
 
+        # Инициализация модели для списка истории ТО
+        self.history_model = QStringListModel()
+        self.listView_history_to.setModel(self.history_model)
+
+        # Подключение кнопки "Назад"
+        self.btn_back.clicked.connect(lambda: go_back(self, self.stacked_widget))
+
+        # Загрузка данных при инициализации
+        self.load_full_maintenance_history()
+
+    def load_full_maintenance_history(self):
+        """Загружает полную историю ТО для всех автомобилей"""
+        try:
+            # Получаем все автомобили
+            cars = self.db.get_cars()
+            if not cars:
+                self.history_model.setStringList(["Нет автомобилей в базе данных"])
+                return
+
+            history_list = []
+
+            # Для каждого автомобиля получаем историю ТО
+            for car in cars:
+                car_info = f"Автомобиль: {car['license_plate']} {car['model']} ({car['car_type']})"
+                history_list.append(car_info)
+                history_list.append("=" * 50)  # Разделитель
+
+                history = self.db.get_maintenance_history(car['car_id'])
+                if not history:
+                    history_list.append("  Нет записей о ТО")
+                else:
+                    for record in history:
+                        record_str = (
+                            f"  Дата: {record['maintenance_date']}\n"
+                            f"  Тип: {record['service_type']}\n"
+                            f"  Пробег: {record['mileage']} км\n"
+                            f"  Описание: {record.get('description', 'нет описания')}"
+                        )
+                        if record.get('cost'):
+                            record_str += f"\n  Стоимость: {record['cost']} руб."
+                        history_list.append(record_str)
+
+                history_list.append("")  # Пустая строка между автомобилями
+
+            self.history_model.setStringList(history_list)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить историю ТО:\n{str(e)}")
+    def sizeHint(self):
+        return QSize(1000, 650)
+
+class MainWindow(QMainWindow, main_menu.Ui_MainWindow):
+    def __init__(self, stacked_widget,is_admin=0):
+        super().__init__()
+        self.setupUi(self)
+        self.stacked_widget = stacked_widget
+        self.db = DatabaseManager()
+        self.is_admin = bool(is_admin)
+        print(f"MainWindow is_admin: {self.is_admin}")
+        # Настраиваем интерфейс в зависимости от прав
+        if not self.is_admin:
+            self.btn_add_data.setVisible(False)
+            self.btn_united_auto.setVisible(False)
+            self.btn_go_to.setVisible(False)
         self.btn_add_data.clicked.connect(self.show_taxi_park)
         self.btn_taxi_park.clicked.connect(self.show_car_manager)
         self.btn_driver.clicked.connect(self.show_driver_manager)
-        self.btn_list_to.clicked.connect(self.show_driver_manager)
+        self.btn_list_to.clicked.connect(self.history_to)
         self.btn_free_driver.clicked.connect(self.free_driver)
         self.btn_go_to.clicked.connect(self.go_to)
         self.btn_united_auto.clicked.connect(self.united_driver)
@@ -713,7 +762,7 @@ class MainWindow(QMainWindow, main_menu.Ui_MainWindow):
             QMessageBox.critical(self, "Ошибка", "Не удалось подключиться к базе данных")
             return
 
-        car_window = CarManagerWindow(self.stacked_widget)
+        car_window = CarManagerWindow(self.stacked_widget, self.is_admin)
         self.stacked_widget.addWidget(car_window)
         self.stacked_widget.setCurrentWidget(car_window)
 
@@ -722,7 +771,7 @@ class MainWindow(QMainWindow, main_menu.Ui_MainWindow):
             QMessageBox.critical(self, "Ошибка", "Не удалось подключиться к базе данных")
             return
 
-        driver_window = DriverManagerWindow(self.stacked_widget)
+        driver_window = DriverManagerWindow(self.stacked_widget, self.is_admin)
         self.stacked_widget.addWidget(driver_window)
         self.stacked_widget.setCurrentWidget(driver_window)
     def united_driver(self):
@@ -759,6 +808,14 @@ class MainWindow(QMainWindow, main_menu.Ui_MainWindow):
         driver_window = TaxiOnTO(self.stacked_widget)
         self.stacked_widget.addWidget(driver_window)
         self.stacked_widget.setCurrentWidget(driver_window)
+    def history_to(self):
+        if not self.db.connect():
+            QMessageBox.critical(self, "Ошибка", "Не удалось подключиться к базе данных")
+            return
+
+        driver_window = HistoryTO(self.stacked_widget)
+        self.stacked_widget.addWidget(driver_window)
+        self.stacked_widget.setCurrentWidget(driver_window)
 
 class MainApp(QApplication):
     def __init__(self, sys_argv):
@@ -768,15 +825,20 @@ class MainApp(QApplication):
         if not db.create_database() or not db.create_tables():
             QMessageBox.critical(None, "Ошибка", "Не удалось инициализировать базу данных")
             sys.exit(1)
+        # Инициализация базы данных для регистрации/авторизации
+        auth_db = Database()
+        if not auth_db.create_database():
+            QMessageBox.critical(None, "Ошибка", "Не удалось создать базу данных для регистрации")
+            sys.exit(1)
         load_application_styles(self)
         self.login_window = LoginWindow(self.stacked_widget)
         self.MainWindow = MainWindow(self.stacked_widget)
         self.stacked_widget.addWidget(self.login_window)
-        self.stacked_widget.addWidget(self.MainWindow)
         # Подключаем обработчик изменения размера
         self.stacked_widget.currentChanged.connect(self.adjust_window_size)
         self.stacked_widget.setCurrentIndex(0)
         self.stacked_widget.show()
+
     def adjust_window_size(self, index):
         """Автоматически подстраивает размер окна под текущий виджет"""
         current_widget = self.stacked_widget.widget(index)
@@ -786,7 +848,8 @@ class MainApp(QApplication):
                 # Добавляем отступы для заголовка окна и границ
                 size += QSize(20, 40)
                 self.stacked_widget.resize(size)
-
+    def sizeHint(self):
+        return QSize(800, 600)
 
 if __name__ == '__main__':
     app = MainApp(sys.argv)
