@@ -123,7 +123,7 @@ class Ui_MainWindow(object):
 
         self.mileageEdit = QLineEdit(self.maintenanceGroup)
         self.mileageEdit.setValidator(QIntValidator(0, 1000000))
-        self.mileageEdit.setPlaceholderText("0")
+        self.mileageEdit.setPlaceholderText("0.00")
 
         self.serviceTypeCombo = QComboBox(self.maintenanceGroup)
         self.serviceTypeCombo.addItems(['Регламентное', 'Ремонт', 'Диагностика'])
@@ -159,23 +159,12 @@ class Ui_MainWindow(object):
         """Настройка группы истории ТО"""
         self.historyGroup = QGroupBox(self.centralwidget)
         self.historyGroup.setTitle(QCoreApplication.translate("MainWindow", u"История ТО", None))
-
         self.historyListView = QListView(self.historyGroup)
         self.historyListView.setMinimumHeight(200)
-
         # Настройки для нередактируемого, но кликабельного списка
         self.historyListView.setEditTriggers(QListView.NoEditTriggers)
         self.historyListView.setSelectionMode(QListView.SingleSelection)
         self.historyListView.setFocusPolicy(Qt.StrongFocus)
-
-        # Устанавливаем свойство для выделения элементов с большим пробегом
-        self.historyListView.setStyleSheet("""
-            QListView::item[highMileage=true] {
-                color: red;
-                font-weight: bold;
-            }
-        """)
-
         historyLayout = QVBoxLayout(self.historyGroup)
         historyLayout.addWidget(self.historyListView)
 

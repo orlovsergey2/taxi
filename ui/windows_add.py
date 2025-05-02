@@ -15,7 +15,7 @@ class Ui_Form(object):
     def setupUi(self, Form):
         if not Form.objectName():
             Form.setObjectName(u"Form")
-        Form.resize(850, 650)  # Оптимальный размер окна
+        Form.resize(1000, 700)  # Оптимальный размер окна
 
         # Центральный виджет и основной layout
         self.central_widget = QWidget(Form)

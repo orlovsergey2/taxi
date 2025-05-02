@@ -2,131 +2,119 @@
 import mysql.connector
 from mysql.connector import Error
 import bcrypt
-from typing import Optional, Tuple
+from typing import Tuple, Optional, Dict
+from contextlib import contextmanager
 
 
 class Database:
     def __init__(self):
-        self.host = "127.0.0.1"
-        self.port = 9306
-        self.user = "myuser"
-        self.password = "mypassword"  # Оставьте пустым или укажите пароль, если он установлен
-        self.database = "registration"
+        self.config = {
+            "host": "127.0.0.1",
+            "port": 9306,
+            "user": "myuser",
+            "password": "mypassword",
+            "database": "registration"
+        }
         self.connection = None
 
-    def connect(self):
-        """Устанавливает соединение с MySQL"""
+    @contextmanager
+    def get_cursor(self):
+        """Контекстный менеджер для работы с курсором"""
+        conn = None
+        cursor = None
         try:
-            self.connection = mysql.connector.connect(
-                host=self.host,
-                port=self.port,
-                user=self.user,
-                password=self.password,
-                database=self.database
-            )
-            return True
+            conn = mysql.connector.connect(**self.config)
+            cursor = conn.cursor(dictionary=True)
+            yield cursor
+            conn.commit()
         except Error as e:
-            print(f"Ошибка подключения к MySQL: {e}")
-            return False
+            if conn:
+                conn.rollback()
+            raise e
+        finally:
+            if cursor:
+                cursor.close()
+            if conn and conn.is_connected():
+                conn.close()
 
     def create_database(self):
         """Создает базу данных и таблицы"""
         try:
             # Подключаемся без указания базы данных
-            temp_conn = mysql.connector.connect(
-                host=self.host,
-                port=self.port,
-                user=self.user,
-                password=self.password
-            )
+            with mysql.connector.connect(
+                    host=self.config["host"],
+                    port=self.config["port"],
+                    user=self.config["user"],
+                    password=self.config["password"]
+            ) as temp_conn:
+                with temp_conn.cursor() as cursor:
+                    # Создаем базу данных если не существует
+                    cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.config['database']}")
 
-            cursor = temp_conn.cursor()
+                    # Создаем таблицу пользователей
+                    cursor.execute(f"""
+                        CREATE TABLE IF NOT EXISTS {self.config['database']}.users (
+                            id INT AUTO_INCREMENT PRIMARY KEY,
+                            username VARCHAR(255) UNIQUE NOT NULL,
+                            password_hash VARCHAR(255) NOT NULL,
+                            is_admin BOOLEAN DEFAULT FALSE
+                        )
+                    """)
 
-            # Создаем базу данных если не существует
-            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.database}")
+                    # Добавляем администратора по умолчанию
+                    admin_hash = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                    cursor.execute(f"""
+                        INSERT IGNORE INTO {self.config['database']}.users 
+                        (username, password_hash, is_admin)
+                        VALUES ('admin', %s, TRUE)
+                    """, (admin_hash,))
 
-            # Создаем таблицу пользователей
-            cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {self.database}.users (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    username VARCHAR(255) UNIQUE NOT NULL,
-                    password_hash VARCHAR(255) NOT NULL,
-                    is_admin BOOLEAN DEFAULT FALSE
-                )
-            """)
-            # Добавляем администратора по умолчанию
-            cursor.execute(f"""
-                           INSERT IGNORE INTO {self.database}.users (username, password_hash, is_admin)
-                           VALUES ('admin', %s, TRUE)
-                       """, (bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'),))
-            temp_conn.commit()
-            cursor.close()
-            temp_conn.close()
+                    temp_conn.commit()
             return True
-
         except Error as e:
             print(f"Ошибка создания базы данных: {e}")
             return False
 
     def register_user(self, username: str, password: str) -> Tuple[bool, str]:
         """Регистрирует нового пользователя"""
-        if not self.connect():
-            return False, "Ошибка подключения к базе данных"
+        if len(password) < 8:
+            return False, "Пароль должен содержать минимум 8 символов"
 
         try:
-            cursor = self.connection.cursor()
+            with self.get_cursor() as cursor:
+                # Проверяем существование пользователя
+                cursor.execute("SELECT username FROM users WHERE username = %s", (username,))
+                if cursor.fetchone():
+                    return False, "Пользователь уже существует"
 
-            # Проверяем существование пользователя
-            cursor.execute("SELECT username FROM users WHERE username = %s", (username,))
-            if cursor.fetchone():
-                return False, "Пользователь уже существует"
-
-            # Хешируем пароль
-            password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-
-            # Добавляем пользователя
-            cursor.execute(
-                "INSERT INTO users (username, password_hash) VALUES (%s, %s)",
-                (username, password_hash)
-            )
-
-            self.connection.commit()
+                # Хешируем пароль и добавляем пользователя
+                password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                cursor.execute(
+                    "INSERT INTO users (username, password_hash) VALUES (%s, %s)",
+                    (username, password_hash)
+                )
             return True, "Пользователь успешно зарегистрирован"
-
         except Error as e:
             return False, f"Ошибка регистрации: {str(e)}"
-        finally:
-            if self.connection.is_connected():
-                cursor.close()
-                self.connection.close()
 
     def check_credentials(self, username: str, password: str) -> Tuple[bool, str, bool]:
-        """Проверяет учетные данные пользователя и возвращает is_admin статус"""
-        if not self.connect():
-            return False, "Ошибка подключения к базе данных", False
-
+        """Проверяет учетные данные пользователя"""
         try:
-            cursor = self.connection.cursor(dictionary=True)
-            cursor.execute(
-                "SELECT password_hash, is_admin FROM users WHERE username = %s",
-                (username,)
-            )
-            user = cursor.fetchone()
+            with self.get_cursor() as cursor:
+                cursor.execute(
+                    "SELECT password_hash, is_admin FROM users WHERE username = %s",
+                    (username,)
+                )
+                user = cursor.fetchone()
 
-            if not user:
-                return False, "Пользователь не найден", False
+                if not user:
+                    return False, "Пользователь не найден", False
 
-            if bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
-                return True, "Аутентификация успешна", user['is_admin']
-            else:
+                if bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+                    return True, "Аутентификация успешна", user['is_admin']
                 return False, "Неверный пароль", False
-
         except Error as e:
             return False, f"Ошибка аутентификации: {str(e)}", False
-        finally:
-            if self.connection.is_connected():
-                cursor.close()
-                self.connection.close()
 
 
 if __name__ == "__main__":
