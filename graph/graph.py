@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 from PySide6.QtGui import QRegularExpressionValidator, QIntValidator
 from PySide6 import QtWidgets, QtCore, QtGui
-from PySide6.QtCore import QSize, QStringListModel
+from PySide6.QtCore import QSize, QStringListModel, QDate
 from PySide6.QtWidgets import (QApplication, QMessageBox, QMainWindow)
 from autorization.registration import Database
 from ui import autorization, main_menu, list_auto, list_driver, united_driver, free_data, go_to, history_to
@@ -664,133 +664,6 @@ class UnitedDriverWindow(QMainWindow, united_driver.Ui_MainWindow, BaseWindow):
 
     def sizeHint(self):
         return QSize(1100, 700)
-
-
-class TaxiOnTO(QMainWindow, go_to.Ui_MainWindow, BaseWindow):
-    def __init__(self, stacked_widget):
-        super().__init__()
-        self.setupUi(self)
-        self.stacked_widget = stacked_widget
-        self.db = DatabaseManager()
-        self.current_items = []
-        setup_date_limits(self.dateEdit)
-
-        if not validate_date_input(self, self.dateEdit):
-            log_action("Ошибка валидации даты в окне ТО")
-            return
-
-        self.setup_validators()
-        self.model = QtCore.QStringListModel()
-        self.carsListView.setModel(self.model)
-        self.carsListView.selectionModel().selectionChanged.connect(self.on_selection_changed)
-        log_action("Инициализация окна технического обслуживания")
-
-        self.btnBack.clicked.connect(lambda: go_back(self, self.stacked_widget))
-        self.btnAddMaintenance.clicked.connect(self.add_maintenance)
-        self.load_data()
-
-    def add_maintenance(self):
-        """Добавляет запись о техническом обслуживании для выбранного автомобиля"""
-        try:
-            # Проверка выбора автомобиля
-            selected = self.carsListView.selectedIndexes()
-            if not selected:
-                QMessageBox.warning(self, "Ошибка", "Выберите автомобиль")
-                log_action("Попытка добавления ТО", "Автомобиль не выбран")
-                return
-
-            selected_index = selected[0].row()
-            if selected_index >= len(self.current_items):
-                QMessageBox.warning(self, "Ошибка", "Неверный индекс автомобиля")
-                log_action("Ошибка добавления ТО", "Неверный индекс автомобиля")
-                return
-
-            car = self.current_items[selected_index]
-
-            # Получение данных из формы
-            mileage = self.mileageEdit.text().strip()
-            date = self.dateEdit.date().toString("yyyy-MM-dd")
-            service_type = self.serviceTypeCombo.currentText()
-            description = self.descriptionEdit.toPlainText().strip()
-            cost = self.costEdit.text().strip() or None
-
-            # Валидация пробега
-            if not mileage:
-                QMessageBox.warning(self, "Ошибка", "Введите пробег")
-                log_action("Попытка добавления ТО", "Пробег не указан")
-                return
-
-            try:
-                mileage_int = int(mileage)
-                if mileage_int <= 0:
-                    QMessageBox.warning(self, "Ошибка", "Пробег должен быть положительным числом")
-                    log_action("Ошибка добавления ТО", "Пробег должен быть положительным")
-                    return
-            except ValueError:
-                QMessageBox.warning(self, "Ошибка", "Пробег должен быть целым числом")
-                log_action("Ошибка добавления ТО", "Некорректный формат пробега")
-                return
-
-            # Валидация стоимости (если указана)
-            cost_float = None
-            if cost:
-                try:
-                    cost_float = float(cost)
-                    if cost_float < 0:
-                        QMessageBox.warning(self, "Ошибка", "Стоимость не может быть отрицательной")
-                        log_action("Ошибка добавления ТО", "Отрицательная стоимость")
-                        return
-                    if cost_float > 999999.99:
-                        QMessageBox.warning(self, "Ошибка", "Слишком большая стоимость (макс. 999999.99)")
-                        log_action("Ошибка добавления ТО", "Слишком большая стоимость")
-                        return
-                except ValueError:
-                    QMessageBox.warning(self, "Ошибка", "Некорректный формат стоимости")
-                    log_action("Ошибка добавления ТО", "Некорректный формат стоимости")
-                    return
-
-            # Проверка соединения с БД
-            if not self.check_db_connection(self.db):
-                log_action("Ошибка добавления ТО", "Нет соединения с БД")
-                return
-
-            # Добавление записи в БД
-            success = self.db.add_maintenance_record(
-                car['car_id'],
-                date,
-                mileage_int,
-                service_type,
-                description,
-                cost_float
-            )
-
-            if success:
-                QMessageBox.information(self, "Успех", "Запись о ТО добавлена")
-                log_action("Добавление записи ТО",
-                           f"Автомобиль: {car['license_plate']}, Дата: {date}, "
-                           f"Пробег: {mileage_int}, Тип: {service_type}, "
-                           f"Стоимость: {cost_float}")
-
-                # Обновление данных
-                self.load_data()
-                self.load_maintenance_history(car['car_id'])
-
-                # Очистка формы (кроме выбранного автомобиля)
-                self.mileageEdit.clear()
-                self.dateEdit.setDate(QDate.currentDate())
-                self.serviceTypeCombo.setCurrentIndex(0)
-                self.descriptionEdit.clear()
-                self.costEdit.clear()
-            else:
-                QMessageBox.warning(self, "Ошибка", "Не удалось добавить запись")
-                log_action("Ошибка добавления записи ТО", "Ошибка БД")
-
-        except Exception as e:
-            error_msg = f"Ошибка при добавлении записи: {str(e)}"
-            QMessageBox.critical(self, "Ошибка", error_msg)
-            log_action("Ошибка добавления записи ТО", error_msg)
-
-
 class FreeDriverWindow(QMainWindow, free_data.Ui_MainWindow, BaseWindow):
     def __init__(self, stacked_widget):
         super().__init__()

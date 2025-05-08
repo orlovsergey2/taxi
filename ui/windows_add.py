@@ -193,7 +193,7 @@ class Ui_Form(object):
 
     def retranslateUi(self, Form):
         Form.setWindowTitle(QCoreApplication.translate("Form", u"Таксопарк", None))
-        self.label.setText(QCoreApplication.translate("Form", u"Таксонометрический парк", None))
+        self.label.setText(QCoreApplication.translate("Form", u"Таксомоторный парк", None))
         self.car_group.setTitle(QCoreApplication.translate("Form", u"Данные автомобиля", None))
         self.driver_group.setTitle(QCoreApplication.translate("Form", u"Данные водителя", None))
 
